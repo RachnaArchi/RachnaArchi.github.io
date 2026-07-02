@@ -1,14 +1,36 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gsap } from "gsap";
+import { Observer } from "gsap/all";
+
+gsap.registerPlugin(Observer);
 
 // constants so its easier to tweak later
 const CLEAR_COLOUR = 0x0f1118;
 const CAM_FOV = 60;
 const CAM_NEAR = 0.1;
 const CAM_FAR = 2000;
-const CAM_START_POS = { x: 0, y: 1.2, z: 5 };
+// lower factor = camera closer to model
+const CAM_DISTANCE_FACTOR = 0.20;
+const CAM_LEFT_FACTOR = 0.0; // adjust cam rotation on x axis
+const CAM_HEIGHT_FACTOR = 0.0; // adjust cam rotation on y axis
+const SCROLL_DURATION = 1;
+const SCROLL_TOLERANCE = 30;
+const DEBUG = false;
+
+// resolved from the HTML page URL, not this JS file location
 const MODEL_PATH = "./Assets/3DExport.glb";
+
+// fixed model positions - scroll down moves right, scroll up moves left
+const MODEL_SECTIONS = [
+    { pos: { x: 100, y: 0, z: 0 }, label: "Home" },
+    { pos: { x: 50, y: 0, z: 0 }, label: "Section 2" },
+    { pos: { x: 0, y: 0, z: 0 }, label: "Section 3" },
+    { pos: { x: -50, y: 0, z: 0 }, label: "Section 4" },
+    { pos: { x: -100, y: 0, z: 0 }, label: "Section 5" },
+];
 
 const canvas = document.querySelector("#bg");
 const statusLabel = document.querySelector("#status");
@@ -23,7 +45,8 @@ const camera = new THREE.PerspectiveCamera(
     CAM_NEAR,
     CAM_FAR
 );
-camera.position.set(CAM_START_POS.x, CAM_START_POS.y, CAM_START_POS.z);
+
+camera.position.set(-3000, 100, 0);
 
 // renderer
 const renderer = new THREE.WebGLRenderer({
@@ -34,10 +57,11 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(CLEAR_COLOUR);
 
-// controls for quick testing / inspection
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.target.set(0, 1, 0);
+let controls = undefined;
+if (DEBUG) {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+}
 
 // lights
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x2a2f45, 0.95);
@@ -52,30 +76,114 @@ const fillLight = new THREE.DirectionalLight(0xbfd2ff, 0.55);
 fillLight.position.set(-5, 2, -3);
 scene.add(fillLight);
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
+
+const lookTarget = new THREE.Vector3();
+let modelGroup = null;
+let modelLookHeight = 0;
+let cameraZ = 5;
+let camLeftOffset = 300
+let camHeightOffset = 1;
+let currentIndex = 0;
+let isAnimating = false;
+
+function updateStatus() {
+    const section = MODEL_SECTIONS[currentIndex];
+    statusLabel.textContent = `${section.label} (${currentIndex + 1}/${MODEL_SECTIONS.length})`;
+}
+
+function setCameraLeftOfModel() {
+    const section = MODEL_SECTIONS[currentIndex];
+    camera.position.set(
+        section.pos.x - camLeftOffset,
+        section.pos.y + camHeightOffset,
+        cameraZ
+    );
+}
+
+function goToNextSection() {
+    if (!modelGroup || isAnimating || currentIndex >= MODEL_SECTIONS.length - 1) return;
+
+    isAnimating = true;
+    currentIndex++;
+
+    const target = MODEL_SECTIONS[currentIndex];
+    gsap.to(modelGroup.position, {
+        x: target.pos.x,
+        y: target.pos.y,
+        z: target.pos.z,
+        duration: SCROLL_DURATION,
+        ease: "power2.inOut",
+        onComplete: () => {
+            isAnimating = false;
+            updateStatus();
+        }
+    });
+}
+
+function goToPrevSection() {
+    if (!modelGroup || isAnimating || currentIndex <= 0) return;
+
+    isAnimating = true;
+    currentIndex--;
+
+    const target = MODEL_SECTIONS[currentIndex];
+    gsap.to(modelGroup.position, {
+        x: target.pos.x,
+        y: target.pos.y,
+        z: target.pos.z,
+        duration: SCROLL_DURATION,
+        ease: "power2.inOut",
+        onComplete: () => {
+            isAnimating = false;
+            updateStatus();
+        }
+    });
+}
+
+function setupScrollControl() {
+    Observer.create({
+        target: window,
+        type: "wheel,touch",
+        preventDefault: true,
+        onDown: () => goToNextSection(),
+        onUp: () => goToPrevSection(),
+        tolerance: SCROLL_TOLERANCE
+    });
+}
 
 loader.load(
     MODEL_PATH,
     (gltf) => {
-        const model = gltf.scene;
-        scene.add(model);
+        modelGroup = new THREE.Group();
 
-        // auto frame the model in camera so it "just works"
-        const box = new THREE.Box3().setFromObject(model);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const maxSize = Math.max(size.x, size.y, size.z);
 
-        // keep controls centered on the model
-        controls.target.copy(center);
+        gltf.scene.position.sub(center);
+        modelGroup.add(gltf.scene);
 
-        const fitDistance = maxSize > 0 ? maxSize * 1.5 : 5;
-        camera.position.set(center.x, center.y + maxSize * 0.35, center.z + fitDistance);
+        const start = MODEL_SECTIONS[0];
+        modelGroup.position.set(start.pos.x, start.pos.y, start.pos.z);
+        scene.add(modelGroup);
+
+        modelLookHeight = size.y * 0.35;
+        camLeftOffset = maxSize * CAM_LEFT_FACTOR;
+        camHeightOffset = maxSize * CAM_HEIGHT_FACTOR;
+        cameraZ = maxSize * CAM_DISTANCE_FACTOR;
         camera.near = Math.max(maxSize / 100, 0.01);
         camera.far = Math.max(maxSize * 100, 2000);
         camera.updateProjectionMatrix();
 
-        statusLabel.textContent = `Model loaded: ${MODEL_PATH}`;
+        setCameraLeftOfModel();
+        updateStatus();
+        setupScrollControl();
     },
     undefined,
     (error) => {
@@ -92,7 +200,17 @@ window.addEventListener("resize", () => {
 
 function animate() {
     requestAnimationFrame(animate);
-    controls.update();
+
+    if (modelGroup) {
+        lookTarget.copy(modelGroup.position);
+        lookTarget.y += modelLookHeight;
+        // camera.lookAt(lookTarget);
+    }
+
+    if (DEBUG) {
+        controls.update();
+    }
+
     renderer.render(scene, camera);
 }
 

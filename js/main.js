@@ -1,3 +1,3 @@
-import "./style.css";
+import "../css/style.css";
 
 console.log("Vite + Vanilla JS is ready.");
