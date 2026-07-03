@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"; // used for loading compressed glb files
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { gsap } from "gsap";
 import { Observer } from "gsap/all";
+import { Text } from "troika-three-text";
 
 gsap.registerPlugin(Observer);
 
@@ -12,13 +13,21 @@ const CLEAR_COLOUR = 0x0f1118;
 const CAM_FOV = 60;
 const CAM_NEAR = 0.1;
 const CAM_FAR = 2000;
+
+// DEBUG = console logs for camera/model positions
+const DEBUG = true;
+// ENABLE_ORBIT_CONTROLS = manual camera movement (independent of DEBUG)
+const ENABLE_ORBIT_CONTROLS = false;
 // lower factor = camera closer to model
-const CAM_DISTANCE_FACTOR = 0.20;
+const CAM_DISTANCE_FACTOR = 0.06;
 const CAM_LEFT_FACTOR = 0.0; // adjust cam rotation on x axis
-const CAM_HEIGHT_FACTOR = 0.0; // adjust cam rotation on y axis
+const CAM_HEIGHT_FACTOR = 0.05; // adjust cam rotation on y axis
 const SCROLL_DURATION = 1;
 const SCROLL_TOLERANCE = 30;
-const DEBUG = false;
+const TEXT_FONT_SIZE = 2;
+const TEXT_MAX_WIDTH = 40;
+const TEXT_REVEAL_DURATION = 1;
+const TEXT_HIDE_DURATION = 1;
 
 // loading screen
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -34,6 +43,8 @@ const letterResolved = new Array(SCRAMBLE_NAME.length).fill(false);
 let modelLoaded = false;
 let nameRevealComplete = false;
 let hideScheduled = false;
+let loaderHidden = false;
+let initialTextPlayed = false;
 
 function randomChar() {
     return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
@@ -102,9 +113,18 @@ function tryHideLoader() {
             duration: 0.6,
             onComplete: () => {
                 loaderOverlay.style.display = "none";
+                loaderHidden = true;
+                playInitialSectionText();
             }
         });
     }, POST_LOAD_DELAY);
+}
+
+function playInitialSectionText() {
+    if (!loaderHidden || initialTextPlayed || sectionTexts.length === 0) return;
+
+    initialTextPlayed = true;
+    revealSectionText(currentIndex);
 }
 
 function onModelLoaded() {
@@ -121,10 +141,34 @@ const MODEL_PATH = "./Assets/3DExport.glb";
 // fixed model positions - scroll down moves right, scroll up moves left
 const MODEL_SECTIONS = [
     { pos: { x: 100, y: 0, z: 0 }, label: "Home" },
-    { pos: { x: 50, y: 0, z: 0 }, label: "Section 2" },
-    { pos: { x: 0, y: 0, z: 0 }, label: "Section 3" },
-    { pos: { x: -50, y: 0, z: 0 }, label: "Section 4" },
-    { pos: { x: -100, y: 0, z: 0 }, label: "Section 5" },
+    { pos: { x: 50, y: 0, z: 0 }, label: "Socials" },
+    { pos: { x: 0, y: 0, z: 0 }, label: "Work One" },
+    { pos: { x: -50, y: 0, z: 0 }, label: "Work Two" },
+    { pos: { x: -100, y: 0, z: 0 }, label: "Work Three" },
+];
+
+// same pos as MODEL_SECTIONS by default - tweak independently later
+const TEXT_SECTIONS = [
+    {
+        pos: { x: 100, y: 20, z: -100 },
+        text: "Bachelor of Architectural Design @ Griffith University. Cadet @ Metricon. Here to make Queensland cities vibrant and thriving."
+    },
+    {
+        pos: { x: 60, y: 0, z: -100 },
+        text: "Connect with me on Linkedin here."
+    },
+    {
+        pos: { x: 60, y: 0, z: -100 },
+        text: "This bridge is from one of my design courses!"
+    },
+    {
+        pos: { x: 60, y: 0, z: -100 },
+        text: "More to come soon!"
+    },
+    {
+        pos: { x: 60, y: 0, z: -100 },
+        text: "More to come soon!"
+    },
 ];
 
 const canvas = document.querySelector("#bg");
@@ -141,7 +185,6 @@ const camera = new THREE.PerspectiveCamera(
     CAM_FAR
 );
 
-camera.position.set(-3000, 100, 0);
 
 // renderer
 const renderer = new THREE.WebGLRenderer({
@@ -153,9 +196,10 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(CLEAR_COLOUR);
 
 let controls = undefined;
-if (DEBUG) {
+if (ENABLE_ORBIT_CONTROLS) {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.addEventListener("change", () => logCameraPosition("Camera (OrbitControls)"));
 }
 
 // lights
@@ -185,10 +229,173 @@ let camLeftOffset = 300
 let camHeightOffset = 1;
 let currentIndex = 0;
 let isAnimating = false;
+let sectionTexts = [];
+
+function debugLog(...args) {
+    if (DEBUG) console.log(...args);
+}
+
+function logCameraPosition(context = "Camera") {
+    if (!DEBUG) return;
+
+    const { x, y, z } = camera.position;
+    debugLog(`${context} position:`, { x, y, z });
+}
+
+function logModelPosition(context = "Model") {
+    if (!DEBUG || !modelGroup) return;
+
+    const { x, y, z } = modelGroup.position;
+    debugLog(`${context} position:`, { x, y, z });
+}
 
 function updateStatus() {
     const section = MODEL_SECTIONS[currentIndex];
     statusLabel.textContent = `${section.label} (${currentIndex + 1}/${MODEL_SECTIONS.length})`;
+}
+
+function setTextByLength(textMesh, length) {
+    const full = textMesh.userData.fullText;
+    textMesh.text = full.slice(0, Math.max(0, Math.min(length, full.length)));
+    textMesh.sync();
+}
+
+function stopTextAnimation(textMesh) {
+    if (textMesh.userData.textTween) {
+        textMesh.userData.textTween.kill();
+        textMesh.userData.textTween = null;
+    }
+}
+
+function revealSectionText(index) {
+    const textMesh = sectionTexts[index];
+    if (!textMesh) return Promise.resolve();
+
+    stopTextAnimation(textMesh);
+
+    const full = textMesh.userData.fullText;
+    textMesh.visible = true;
+    setTextByLength(textMesh, 0);
+
+    const state = { length: 0 };
+
+    return new Promise((resolve) => {
+        textMesh.userData.textTween = gsap.to(state, {
+            length: full.length,
+            duration: TEXT_REVEAL_DURATION,
+            ease: "none",
+            onUpdate: () => setTextByLength(textMesh, Math.floor(state.length)),
+            onComplete: () => {
+                setTextByLength(textMesh, full.length);
+                textMesh.userData.textTween = null;
+                resolve();
+            }
+        });
+    });
+}
+
+function hideSectionText(index) {
+    const textMesh = sectionTexts[index];
+    if (!textMesh) return Promise.resolve();
+
+    stopTextAnimation(textMesh);
+
+    const full = textMesh.userData.fullText;
+    const state = { length: full.length };
+    setTextByLength(textMesh, full.length);
+
+    return new Promise((resolve) => {
+        textMesh.userData.textTween = gsap.to(state, {
+            length: 0,
+            duration: TEXT_HIDE_DURATION,
+            ease: "none",
+            onUpdate: () => setTextByLength(textMesh, Math.ceil(state.length)),
+            onComplete: () => {
+                setTextByLength(textMesh, 0);
+                textMesh.visible = false;
+                textMesh.userData.textTween = null;
+                resolve();
+            }
+        });
+    });
+}
+
+function createSectionText({ text, pos }) {
+    const outText = new Text();
+
+    outText.userData.fullText = text;
+    outText.text = "";
+    outText.fontSize = TEXT_FONT_SIZE;
+    outText.color = 0xffffff;
+    outText.maxWidth = TEXT_MAX_WIDTH;
+    outText.position.set(pos.x, pos.y, pos.z);
+    outText.textAlign = "left";
+    outText.anchorX = "left";
+    outText.anchorY = "middle";
+    outText.visible = false;
+    outText.sync();
+
+    scene.add(outText);
+    return outText;
+}
+
+function initSectionTexts() {
+    sectionTexts = TEXT_SECTIONS.map((section) => createSectionText(section));
+}
+
+function warmupSectionTexts() {
+    return Promise.all(
+        sectionTexts.map(
+            (textMesh) =>
+                new Promise((resolve) => {
+                    textMesh.text = textMesh.userData.fullText;
+                    textMesh.sync(() => {
+                        textMesh.text = "";
+                        textMesh.visible = false;
+                        textMesh.sync(resolve);
+                    });
+                })
+        )
+    );
+}
+
+async function transitionToSection(newIndex) {
+    if (!modelGroup || isAnimating || newIndex === currentIndex) return;
+    if (newIndex < 0 || newIndex >= MODEL_SECTIONS.length) return;
+
+    isAnimating = true;
+    const oldIndex = currentIndex;
+
+    await hideSectionText(oldIndex);
+
+    currentIndex = newIndex;
+    updateStatus();
+
+    const target = MODEL_SECTIONS[currentIndex];
+    await new Promise((resolve) => {
+        gsap.to(modelGroup.position, {
+            x: target.pos.x,
+            y: target.pos.y,
+            z: target.pos.z,
+            duration: SCROLL_DURATION,
+            ease: "power2.inOut",
+            onComplete: resolve
+        });
+    });
+
+    await revealSectionText(currentIndex);
+
+    isAnimating = false;
+}
+
+function goToNextSection() {
+    if (!modelGroup || isAnimating || currentIndex >= MODEL_SECTIONS.length - 1) return;
+    transitionToSection(currentIndex + 1);
+}
+
+function goToPrevSection() {
+    if (!modelGroup || isAnimating || currentIndex <= 0) return;
+    transitionToSection(currentIndex - 1);
 }
 
 function setCameraLeftOfModel() {
@@ -198,46 +405,7 @@ function setCameraLeftOfModel() {
         section.pos.y + camHeightOffset,
         cameraZ
     );
-}
-
-function goToNextSection() {
-    if (!modelGroup || isAnimating || currentIndex >= MODEL_SECTIONS.length - 1) return;
-
-    isAnimating = true;
-    currentIndex++;
-
-    const target = MODEL_SECTIONS[currentIndex];
-    gsap.to(modelGroup.position, {
-        x: target.pos.x,
-        y: target.pos.y,
-        z: target.pos.z,
-        duration: SCROLL_DURATION,
-        ease: "power2.inOut",
-        onComplete: () => {
-            isAnimating = false;
-            updateStatus();
-        }
-    });
-}
-
-function goToPrevSection() {
-    if (!modelGroup || isAnimating || currentIndex <= 0) return;
-
-    isAnimating = true;
-    currentIndex--;
-
-    const target = MODEL_SECTIONS[currentIndex];
-    gsap.to(modelGroup.position, {
-        x: target.pos.x,
-        y: target.pos.y,
-        z: target.pos.z,
-        duration: SCROLL_DURATION,
-        ease: "power2.inOut",
-        onComplete: () => {
-            isAnimating = false;
-            updateStatus();
-        }
-    });
+    logCameraPosition("Camera (setCameraLeftOfModel)");
 }
 
 function setupScrollControl() {
@@ -261,7 +429,7 @@ loader.load(
         const center = box.getCenter(new THREE.Vector3());
         const maxSize = Math.max(size.x, size.y, size.z);
 
-        gltf.scene.position.sub(center);
+        //gltf.scene.position.sub(center);
         modelGroup.add(gltf.scene);
 
         const start = MODEL_SECTIONS[0];
@@ -277,9 +445,13 @@ loader.load(
         camera.updateProjectionMatrix();
 
         setCameraLeftOfModel();
-        updateStatus();
-        setupScrollControl();
-        onModelLoaded();
+        initSectionTexts();
+        warmupSectionTexts().then(() => {
+            logModelPosition("Model (loaded)");
+            updateStatus();
+            setupScrollControl();
+            onModelLoaded();
+        });
     },
     (xhr) => {
         if (xhr.lengthComputable) {
@@ -311,7 +483,7 @@ function animate() {
         // camera.lookAt(lookTarget);
     }
 
-    if (DEBUG) {
+    if (ENABLE_ORBIT_CONTROLS && controls) {
         controls.update();
     }
 
