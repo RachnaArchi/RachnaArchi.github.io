@@ -28,6 +28,7 @@ const TEXT_FONT_SIZE = 2;
 const TEXT_MAX_WIDTH = 40;
 const TEXT_REVEAL_DURATION = 1;
 const TEXT_HIDE_DURATION = 1;
+const MOBILE_BREAKPOINT = 1080;
 
 // loading screen
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -140,33 +141,38 @@ const MODEL_PATH = "./Assets/3DExport.glb";
 
 // fixed model positions - scroll down moves right, scroll up moves left
 const MODEL_SECTIONS = [
-    { pos: { x: 100, y: 0, z: 0 }, label: "Home" },
-    { pos: { x: 50, y: 0, z: 0 }, label: "Socials" },
-    { pos: { x: 0, y: 0, z: 0 }, label: "Work One" },
-    { pos: { x: -50, y: 0, z: 0 }, label: "Work Two" },
-    { pos: { x: -100, y: 0, z: 0 }, label: "Work Three" },
+    { mobilePos: { x: 100, y: 0, z: 0 }, desktopPos: { x: 200, y: 0, z: 0 }, label: "Home" },
+    { mobilePos: { x: 50, y: 0, z: 0 }, desktopPos: { x: 50, y: 0, z: 0 }, label: "Socials" },
+    { mobilePos: { x: 0, y: 0, z: 0 }, desktopPos: { x: 0, y: 0, z: 0 }, label: "Work One" },
+    { mobilePos: { x: -50, y: 0, z: 0 }, desktopPos: { x: -50, y: 0, z: 0 }, label: "Work Two" },
+    { mobilePos: { x: -100, y: 0, z: 0 }, desktopPos: { x: -100, y: 0, z: 0 }, label: "Work Three" },
 ];
 
-// same pos as MODEL_SECTIONS by default - tweak independently later
+// tweak mobilePos / desktopPos independently per section
 const TEXT_SECTIONS = [
     {
-        pos: { x: 100, y: 20, z: -100 },
+        mobilePos: { x: 100, y: 20, z: -100 },
+        desktopPos: { x: 100, y: 20, z: -100 },
         text: "Bachelor of Architectural Design @ Griffith University. Cadet @ Metricon. Here to make Queensland cities vibrant and thriving."
     },
     {
-        pos: { x: 60, y: 0, z: -100 },
+        mobilePos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 60, y: 0, z: -100 },
         text: "Connect with me on Linkedin here."
     },
     {
-        pos: { x: 60, y: 0, z: -100 },
+        mobilePos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 60, y: 0, z: -100 },
         text: "This bridge is from one of my design courses!"
     },
     {
-        pos: { x: 60, y: 0, z: -100 },
+        mobilePos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 60, y: 0, z: -100 },
         text: "More to come soon!"
     },
     {
-        pos: { x: 60, y: 0, z: -100 },
+        mobilePos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 60, y: 0, z: -100 },
         text: "More to come soon!"
     },
 ];
@@ -230,6 +236,19 @@ let camHeightOffset = 1;
 let currentIndex = 0;
 let isAnimating = false;
 let sectionTexts = [];
+let isMobile = isMobileView();
+
+function isMobileView() {
+    return window.innerWidth < MOBILE_BREAKPOINT;
+}
+
+function getModelPos(section) {
+    return isMobileView() ? section.mobilePos : section.desktopPos;
+}
+
+function getTextPos(section) {
+    return isMobileView() ? section.mobilePos : section.desktopPos;
+}
 
 function debugLog(...args) {
     if (DEBUG) console.log(...args);
@@ -320,10 +339,11 @@ function hideSectionText(index) {
     });
 }
 
-function createSectionText({ text, pos }) {
+function createSectionText(section) {
     const outText = new Text();
+    const pos = getTextPos(section);
 
-    outText.userData.fullText = text;
+    outText.userData.fullText = section.text;
     outText.text = "";
     outText.fontSize = TEXT_FONT_SIZE;
     outText.color = 0xffffff;
@@ -341,6 +361,24 @@ function createSectionText({ text, pos }) {
 
 function initSectionTexts() {
     sectionTexts = TEXT_SECTIONS.map((section) => createSectionText(section));
+}
+
+function applyViewportLayout() {
+    if (!modelGroup) return;
+
+    const mobile = isMobileView();
+    if (mobile === isMobile) return;
+    isMobile = mobile;
+
+    const modelPos = getModelPos(MODEL_SECTIONS[currentIndex]);
+    modelGroup.position.set(modelPos.x, modelPos.y, modelPos.z);
+    setCameraLeftOfModel();
+
+    sectionTexts.forEach((textMesh, i) => {
+        const pos = getTextPos(TEXT_SECTIONS[i]);
+        textMesh.position.set(pos.x, pos.y, pos.z);
+        textMesh.sync();
+    });
 }
 
 function warmupSectionTexts() {
@@ -372,11 +410,12 @@ async function transitionToSection(newIndex) {
     updateStatus();
 
     const target = MODEL_SECTIONS[currentIndex];
+    const targetPos = getModelPos(target);
     await new Promise((resolve) => {
         gsap.to(modelGroup.position, {
-            x: target.pos.x,
-            y: target.pos.y,
-            z: target.pos.z,
+            x: targetPos.x,
+            y: targetPos.y,
+            z: targetPos.z,
             duration: SCROLL_DURATION,
             ease: "power2.inOut",
             onComplete: resolve
@@ -400,9 +439,10 @@ function goToPrevSection() {
 
 function setCameraLeftOfModel() {
     const section = MODEL_SECTIONS[currentIndex];
+    const pos = getModelPos(section);
     camera.position.set(
-        section.pos.x - camLeftOffset,
-        section.pos.y + camHeightOffset,
+        pos.x - camLeftOffset,
+        pos.y + camHeightOffset,
         cameraZ
     );
     logCameraPosition("Camera (setCameraLeftOfModel)");
@@ -433,7 +473,8 @@ loader.load(
         modelGroup.add(gltf.scene);
 
         const start = MODEL_SECTIONS[0];
-        modelGroup.position.set(start.pos.x, start.pos.y, start.pos.z);
+        const startPos = getModelPos(start);
+        modelGroup.position.set(startPos.x, startPos.y, startPos.z);
         scene.add(modelGroup);
 
         modelLookHeight = size.y * 0.35;
@@ -472,6 +513,7 @@ window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    applyViewportLayout();
 });
 
 function animate() {
