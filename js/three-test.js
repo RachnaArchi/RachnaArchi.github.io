@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { gsap } from "gsap";
 import { Observer } from "gsap/all";
 import { Text } from "troika-three-text";
+import "../css/three-test.css";
 
 gsap.registerPlugin(Observer);
 
@@ -28,8 +29,9 @@ const STAR_COUNT = 200;
 const STAR_DRIFT_DISTANCE = 200;
 const TEXT_FONT_SIZE = 2;
 const TEXT_MAX_WIDTH = 40;
-const TEXT_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Regular.ttf";
-const TITLE_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Bold.ttf";
+const ASSET_BASE = import.meta.env.BASE_URL;
+const TEXT_FONT = `${ASSET_BASE}Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Regular.ttf`;
+const TITLE_FONT = `${ASSET_BASE}Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Bold.ttf`;
 const TITLE_TEXT = "Rachna Leang";
 const TITLE_TEXT_POS = { x: 159.2, y: 33, z: -10 };
 const TITLE_FONT_SIZE = 2;
@@ -37,7 +39,7 @@ const SCROLL_HINT_TEXT = "scroll down for more!";
 const SCROLL_HINT_TEXT_POS = { x: 270, y: 65, z: -40 };
 const SCROLL_HINT_FONT_SIZE = 2;
 const LINKEDIN_URL = "https://www.linkedin.com/in/rachna-leang-b702952b9/";
-const LINKEDIN_TEXTURE_PATH = "./Assets/images/linkedin.png";
+const LINKEDIN_TEXTURE_PATH = `${ASSET_BASE}Assets/images/linkedin.png`;
 const LINKEDIN_CUBE_POS = {
     mobilePos: { x: 60, y: 0, z: -100 },
     desktopPos: { x: 200, y: 30, z: -1 }
@@ -166,8 +168,8 @@ function onModelLoaded() {
 
 runNameReveal();
 
-// resolved from the HTML page URL, not this JS file location
-const MODEL_PATH = "./Assets/3DExport.glb";
+// resolved from site base URL (Vite public/Assets)
+const MODEL_PATH = `${ASSET_BASE}Assets/3DExport.glb`;
 
 // fixed model positions - scroll down moves right, scroll up moves left
 const MODEL_SECTIONS = [
