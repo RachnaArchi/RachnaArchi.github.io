@@ -26,6 +26,28 @@ const SCROLL_DURATION = 1;
 const SCROLL_TOLERANCE = 30;
 const TEXT_FONT_SIZE = 2;
 const TEXT_MAX_WIDTH = 40;
+const TEXT_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Regular.ttf";
+const TITLE_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Bold.ttf";
+const TITLE_TEXT = "Rachna Leang";
+const TITLE_TEXT_POS = { x: 159.2, y: 33, z: -10 };
+const TITLE_FONT_SIZE = 2;
+const LINKEDIN_URL = "https://www.linkedin.com/in/rachna-leang-b702952b9/";
+const LINKEDIN_TEXTURE_PATH = "./Assets/images/linkedin.png";
+const LINKEDIN_CUBE_POS = {
+    mobilePos: { x: 60, y: 0, z: -100 },
+    desktopPos: { x: 200, y: 30, z: -1 }
+};
+const LINKEDIN_CUBE_SIZE = 3;
+const LINKEDIN_CUBE_SCALE_MIN = 1.0;
+const LINKEDIN_CUBE_SCALE_MAX = 1.5;
+const LINKEDIN_CUBE_SCALE_STEP = 0.003;
+const LINKEDIN_CUBE_SPIN_X = 0.01;
+const LINKEDIN_CUBE_SPIN_Y = 0.005;
+const LINKEDIN_CUBE_SPIN_Z = 0.0001;
+const LINKEDIN_CUBE_SECTION_INDEX = 1;
+const LINKEDIN_CUBE_ANIM_DURATION = 2;
+const LINKEDIN_CUBE_EXIT_ANIM_DURATION = 1;
+const LINKEDIN_CUBE_SLIDE_OFFSET = 50;
 const TEXT_REVEAL_DURATION = 1;
 const TEXT_HIDE_DURATION = 1;
 const MOBILE_BREAKPOINT = 1080;
@@ -125,6 +147,7 @@ function playInitialSectionText() {
     if (!loaderHidden || initialTextPlayed || sectionTexts.length === 0) return;
 
     initialTextPlayed = true;
+    revealTitleText();
     revealSectionText(currentIndex);
 }
 
@@ -142,37 +165,37 @@ const MODEL_PATH = "./Assets/3DExport.glb";
 // fixed model positions - scroll down moves right, scroll up moves left
 const MODEL_SECTIONS = [
     { mobilePos: { x: 100, y: 0, z: 0 }, desktopPos: { x: 200, y: 0, z: 0 }, label: "Home" },
-    { mobilePos: { x: 50, y: 0, z: 0 }, desktopPos: { x: 50, y: 0, z: 0 }, label: "Socials" },
-    { mobilePos: { x: 0, y: 0, z: 0 }, desktopPos: { x: 0, y: 0, z: 0 }, label: "Work One" },
-    { mobilePos: { x: -50, y: 0, z: 0 }, desktopPos: { x: -50, y: 0, z: 0 }, label: "Work Two" },
-    { mobilePos: { x: -100, y: 0, z: 0 }, desktopPos: { x: -100, y: 0, z: 0 }, label: "Work Three" },
+    { mobilePos: { x: 50, y: 0, z: 0 }, desktopPos: { x: 0, y: 0, z: 0 }, label: "Socials" },
+    { mobilePos: { x: 0, y: 0, z: 0 }, desktopPos: { x: -200, y: 0, z: 0 }, label: "Work One" },
+    { mobilePos: { x: -50, y: 0, z: 0 }, desktopPos: { x: -400, y: 0, z: 0 }, label: "Work Two" },
+    { mobilePos: { x: -100, y: 0, z: 0 }, desktopPos: { x: -600, y: 0, z: 0 }, label: "Work Three" },
 ];
 
 // tweak mobilePos / desktopPos independently per section
 const TEXT_SECTIONS = [
     {
         mobilePos: { x: 100, y: 20, z: -100 },
-        desktopPos: { x: 100, y: 20, z: -100 },
-        text: "Bachelor of Architectural Design @ Griffith University. Cadet @ Metricon. Here to make Queensland cities vibrant and thriving."
+        desktopPos: { x: 150, y: 25, z: -20 },
+        text: "Bachelor of Architectural Design @ Griffith University. \nCadet @ Metricon. \nHere to make Queensland cities vibrant and thriving."
     },
     {
         mobilePos: { x: 60, y: 0, z: -100 },
-        desktopPos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 150, y: 50, z: -20 },
         text: "Connect with me on Linkedin here."
     },
     {
         mobilePos: { x: 60, y: 0, z: -100 },
-        desktopPos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 150, y: 20, z: -20 },
         text: "This bridge is from one of my design courses!"
     },
     {
         mobilePos: { x: 60, y: 0, z: -100 },
-        desktopPos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 150, y: 40, z: -20 },
         text: "More to come soon!"
     },
     {
         mobilePos: { x: 60, y: 0, z: -100 },
-        desktopPos: { x: 60, y: 0, z: -100 },
+        desktopPos: { x: 150, y: 30, z: -20 },
         text: "More to come soon!"
     },
 ];
@@ -236,7 +259,16 @@ let camHeightOffset = 1;
 let currentIndex = 0;
 let isAnimating = false;
 let sectionTexts = [];
+let titleText = null;
+let linkedInCube = null;
+let linkedInCubeHovered = false;
+let linkedInCubeScale = LINKEDIN_CUBE_SCALE_MIN;
+let linkedInCubeScaleGrowing = true;
+let linkedInCubeAnimating = false;
 let isMobile = isMobileView();
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
 function isMobileView() {
     return window.innerWidth < MOBILE_BREAKPOINT;
@@ -248,6 +280,10 @@ function getModelPos(section) {
 
 function getTextPos(section) {
     return isMobileView() ? section.mobilePos : section.desktopPos;
+}
+
+function getLinkedInCubePos() {
+    return isMobileView() ? LINKEDIN_CUBE_POS.mobilePos : LINKEDIN_CUBE_POS.desktopPos;
 }
 
 function debugLog(...args) {
@@ -286,8 +322,7 @@ function stopTextAnimation(textMesh) {
     }
 }
 
-function revealSectionText(index) {
-    const textMesh = sectionTexts[index];
+function revealTextMesh(textMesh) {
     if (!textMesh) return Promise.resolve();
 
     stopTextAnimation(textMesh);
@@ -313,8 +348,7 @@ function revealSectionText(index) {
     });
 }
 
-function hideSectionText(index) {
-    const textMesh = sectionTexts[index];
+function hideTextMesh(textMesh) {
     if (!textMesh) return Promise.resolve();
 
     stopTextAnimation(textMesh);
@@ -339,12 +373,50 @@ function hideSectionText(index) {
     });
 }
 
+function revealSectionText(index) {
+    return revealTextMesh(sectionTexts[index]);
+}
+
+function hideSectionText(index) {
+    return hideTextMesh(sectionTexts[index]);
+}
+
+function revealTitleText() {
+    return revealTextMesh(titleText);
+}
+
+function hideTitleText() {
+    return hideTextMesh(titleText);
+}
+
+function createTitleText() {
+    const outText = new Text();
+    const pos = TITLE_TEXT_POS;
+
+    outText.userData.fullText = TITLE_TEXT;
+    outText.text = "";
+    outText.font = TITLE_FONT;
+    outText.fontSize = TITLE_FONT_SIZE;
+    outText.color = 0xffffff;
+    outText.maxWidth = TEXT_MAX_WIDTH;
+    outText.position.set(pos.x, pos.y, pos.z);
+    outText.textAlign = "left";
+    outText.anchorX = "left";
+    outText.anchorY = "middle";
+    outText.visible = false;
+    outText.sync();
+
+    scene.add(outText);
+    return outText;
+}
+
 function createSectionText(section) {
     const outText = new Text();
     const pos = getTextPos(section);
 
     outText.userData.fullText = section.text;
     outText.text = "";
+    outText.font = TEXT_FONT;
     outText.fontSize = TEXT_FONT_SIZE;
     outText.color = 0xffffff;
     outText.maxWidth = TEXT_MAX_WIDTH;
@@ -360,7 +432,174 @@ function createSectionText(section) {
 }
 
 function initSectionTexts() {
+    titleText = createTitleText();
     sectionTexts = TEXT_SECTIONS.map((section) => createSectionText(section));
+}
+
+function createLinkedInCube() {
+    const texture = new THREE.TextureLoader().load(LINKEDIN_TEXTURE_PATH);
+    const pos = getLinkedInCubePos();
+
+    const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(LINKEDIN_CUBE_SIZE, LINKEDIN_CUBE_SIZE, LINKEDIN_CUBE_SIZE),
+        new THREE.MeshBasicMaterial({ map: texture })
+    );
+
+    cube.position.set(pos.x, pos.y, pos.z);
+    cube.visible = false;
+    scene.add(cube);
+    return cube;
+}
+
+function setLinkedInCubeVisible(visible) {
+    if (!linkedInCube) return;
+
+    linkedInCube.visible = visible;
+
+    if (!visible) {
+        linkedInCubeHovered = false;
+        linkedInCubeScale = LINKEDIN_CUBE_SCALE_MIN;
+        linkedInCube.scale.set(
+            LINKEDIN_CUBE_SCALE_MIN,
+            LINKEDIN_CUBE_SCALE_MIN,
+            LINKEDIN_CUBE_SCALE_MIN
+        );
+        canvas.style.cursor = "default";
+    }
+}
+
+function stopLinkedInCubeAnimation() {
+    if (!linkedInCube) return;
+
+    gsap.killTweensOf(linkedInCube.position);
+    linkedInCubeAnimating = false;
+}
+
+function getLinkedInCubeTargetPos() {
+    const pos = getLinkedInCubePos();
+    return { x: pos.x, y: pos.y, z: pos.z };
+}
+
+function animateLinkedInCubeIn() {
+    return new Promise((resolve) => {
+        if (!linkedInCube) {
+            resolve();
+            return;
+        }
+
+        stopLinkedInCubeAnimation();
+
+        const target = getLinkedInCubeTargetPos();
+        linkedInCube.position.set(
+            target.x - LINKEDIN_CUBE_SLIDE_OFFSET,
+            target.y,
+            target.z
+        );
+        linkedInCubeAnimating = true;
+        setLinkedInCubeVisible(true);
+
+        gsap.to(linkedInCube.position, {
+            x: target.x,
+            y: target.y,
+            z: target.z,
+            duration: LINKEDIN_CUBE_ANIM_DURATION,
+            ease: "power2.out",
+            onComplete: () => {
+                linkedInCubeAnimating = false;
+                resolve();
+            }
+        });
+    });
+}
+
+function animateLinkedInCubeOut(duration = LINKEDIN_CUBE_EXIT_ANIM_DURATION) {
+    return new Promise((resolve) => {
+        if (!linkedInCube || !linkedInCube.visible) {
+            resolve();
+            return;
+        }
+
+        stopLinkedInCubeAnimation();
+
+        const target = getLinkedInCubeTargetPos();
+        linkedInCube.position.set(target.x, target.y, target.z);
+        linkedInCubeAnimating = true;
+
+        gsap.to(linkedInCube.position, {
+            x: target.x + LINKEDIN_CUBE_SLIDE_OFFSET,
+            y: target.y,
+            z: target.z,
+            duration,
+            ease: "power2.in",
+            onComplete: () => {
+                setLinkedInCubeVisible(false);
+                linkedInCube.position.set(target.x, target.y, target.z);
+                linkedInCubeAnimating = false;
+                resolve();
+            }
+        });
+    });
+}
+
+function spinLinkedInCube() {
+    if (!linkedInCube || !linkedInCube.visible) return;
+
+    linkedInCube.rotation.x += LINKEDIN_CUBE_SPIN_X;
+    linkedInCube.rotation.y += LINKEDIN_CUBE_SPIN_Y;
+    linkedInCube.rotation.z += LINKEDIN_CUBE_SPIN_Z;
+}
+
+function updateLinkedInCubeHover() {
+    if (!linkedInCube || !linkedInCube.visible || linkedInCubeAnimating) return;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObject(linkedInCube);
+
+    if (intersects.length > 0) {
+        if (!linkedInCubeHovered) {
+            linkedInCubeHovered = true;
+            linkedInCubeScale = LINKEDIN_CUBE_SCALE_MIN;
+            linkedInCubeScaleGrowing = true;
+        }
+
+        if (linkedInCubeScaleGrowing) {
+            linkedInCubeScale += LINKEDIN_CUBE_SCALE_STEP;
+            if (linkedInCubeScale >= LINKEDIN_CUBE_SCALE_MAX) {
+                linkedInCubeScaleGrowing = false;
+            }
+        } else {
+            linkedInCubeScale -= LINKEDIN_CUBE_SCALE_STEP;
+            if (linkedInCubeScale <= LINKEDIN_CUBE_SCALE_MIN) {
+                linkedInCubeScaleGrowing = true;
+            }
+        }
+
+        linkedInCube.scale.set(linkedInCubeScale, linkedInCubeScale, linkedInCubeScale);
+        canvas.style.cursor = "pointer";
+    } else if (linkedInCubeHovered) {
+        linkedInCubeHovered = false;
+        linkedInCubeScale = LINKEDIN_CUBE_SCALE_MIN;
+        linkedInCube.scale.set(LINKEDIN_CUBE_SCALE_MIN, LINKEDIN_CUBE_SCALE_MIN, LINKEDIN_CUBE_SCALE_MIN);
+        canvas.style.cursor = "default";
+    }
+}
+
+function setupLinkedInCubeInteraction() {
+    window.addEventListener("mousemove", (event) => {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    window.addEventListener("click", () => {
+        if (!linkedInCube || !linkedInCube.visible || linkedInCubeAnimating || isAnimating) return;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(linkedInCube);
+
+        if (intersects.length > 0) {
+            window.open(LINKEDIN_URL, "_blank", "noopener,noreferrer");
+        }
+    });
 }
 
 function applyViewportLayout() {
@@ -379,11 +618,24 @@ function applyViewportLayout() {
         textMesh.position.set(pos.x, pos.y, pos.z);
         textMesh.sync();
     });
+
+    if (titleText) {
+        const titlePos = TITLE_TEXT_POS;
+        titleText.position.set(titlePos.x, titlePos.y, titlePos.z);
+        titleText.sync();
+    }
+
+    if (linkedInCube && !linkedInCubeAnimating) {
+        const cubePos = getLinkedInCubeTargetPos();
+        linkedInCube.position.set(cubePos.x, cubePos.y, cubePos.z);
+    }
 }
 
 function warmupSectionTexts() {
+    const meshes = titleText ? [titleText, ...sectionTexts] : sectionTexts;
+
     return Promise.all(
-        sectionTexts.map(
+        meshes.map(
             (textMesh) =>
                 new Promise((resolve) => {
                     textMesh.text = textMesh.userData.fullText;
@@ -405,6 +657,18 @@ async function transitionToSection(newIndex) {
     const oldIndex = currentIndex;
 
     await hideSectionText(oldIndex);
+    if (oldIndex === 0) await hideTitleText();
+
+    const leavingLinkedInSection = oldIndex === LINKEDIN_CUBE_SECTION_INDEX;
+    const enteringLinkedInSection = newIndex === LINKEDIN_CUBE_SECTION_INDEX;
+    const exitingLinkedInForward = leavingLinkedInSection && newIndex > LINKEDIN_CUBE_SECTION_INDEX;
+
+    if (exitingLinkedInForward) {
+        await animateLinkedInCubeOut();
+    } else if (leavingLinkedInSection) {
+        stopLinkedInCubeAnimation();
+        setLinkedInCubeVisible(false);
+    }
 
     currentIndex = newIndex;
     updateStatus();
@@ -422,7 +686,15 @@ async function transitionToSection(newIndex) {
         });
     });
 
-    await revealSectionText(currentIndex);
+    if (currentIndex === 0) {
+        await Promise.all([revealSectionText(currentIndex), revealTitleText()]);
+    } else {
+        await revealSectionText(currentIndex);
+    }
+
+    if (enteringLinkedInSection) {
+        await animateLinkedInCubeIn();
+    }
 
     isAnimating = false;
 }
@@ -486,6 +758,8 @@ loader.load(
         camera.updateProjectionMatrix();
 
         setCameraLeftOfModel();
+        linkedInCube = createLinkedInCube();
+        setupLinkedInCubeInteraction();
         initSectionTexts();
         warmupSectionTexts().then(() => {
             logModelPosition("Model (loaded)");
@@ -528,6 +802,9 @@ function animate() {
     if (ENABLE_ORBIT_CONTROLS && controls) {
         controls.update();
     }
+
+    spinLinkedInCube();
+    updateLinkedInCubeHover();
 
     renderer.render(scene, camera);
 }

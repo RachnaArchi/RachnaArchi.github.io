@@ -32,3 +32,4 @@ coverage/
 # Project folder to ignore
 DECO1400/
 
+.cursor/
