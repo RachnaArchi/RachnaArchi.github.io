@@ -1,17 +1,23 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>R Portfolio</title>
-  <link rel="stylesheet" href="./css/style.css" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rachna Leang</title>
+    <link rel="stylesheet" href="./css/three-test.css">
 </head>
-<body>
-  <main class="app">
-    <h1>Vite Vanilla JS Setup</h1>
-    <p>Your project is now running on Vite.</p>
-    <a href="./three-test.html">Open Three.js GLB test page</a>
-  </main>
-  <script type="module" src="./js/main.js"></script>
+<body class="page-three-test">
+    <div id="loader">
+        <div id="loader-name">Rachna Leang</div>
+        <div id="loader-bottom">
+            <p id="loader-text">Loading...</p>
+            <div id="loader-bar-track">
+                <div id="loader-bar-fill"></div>
+            </div>
+        </div>
+    </div>
+    <canvas id="bg"></canvas>
+    <div class="status" id="status">Loading 3D model...</div>
+    <script type="module" src="./js/three-test.js"></script>
 </body>
 </html>
