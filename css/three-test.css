@@ -22,6 +22,58 @@ body.page-three-test canvas {
     display: block;
 }
 
+body.page-three-test #loader {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #0f1118;
+}
+
+body.page-three-test #loader-name {
+    position: absolute;
+    top: 50%;
+    left: 66%;
+    width: 34%;
+    transform: translateY(-50%);
+    padding-right: 2rem;
+    color: #ffffff;
+    font-size: clamp(1.5rem, 4vw, 3rem);
+    font-weight: 600;
+    text-align: right;
+    letter-spacing: 0.05em;
+}
+
+body.page-three-test #loader-bottom {
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    width: 100%;
+    padding: 0 2rem;
+}
+
+body.page-three-test #loader-text {
+    color: #ffffff;
+    text-align: center;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
+}
+
+body.page-three-test #loader-bar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+body.page-three-test #loader-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: #7ec8e3;
+    border-radius: 2px;
+    transition: width 0.2s ease-out;
+}
+
 body.page-three-test .status {
     position: fixed;
     left: 16px;

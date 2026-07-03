@@ -20,6 +20,101 @@ const SCROLL_DURATION = 1;
 const SCROLL_TOLERANCE = 30;
 const DEBUG = false;
 
+// loading screen
+const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const SCRAMBLE_NAME = "Rachna Leang";
+const SCRAMBLE_INTERVAL = 40;
+const LETTER_SCRAMBLE_DURATION = 120;
+const POST_LOAD_DELAY = 2000;
+
+const loaderOverlay = document.querySelector("#loader");
+const loaderName = document.querySelector("#loader-name");
+const loaderBarFill = document.querySelector("#loader-bar-fill");
+const letterResolved = new Array(SCRAMBLE_NAME.length).fill(false);
+let modelLoaded = false;
+let nameRevealComplete = false;
+let hideScheduled = false;
+
+function randomChar() {
+    return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+}
+
+function renderScrambleName() {
+    let output = "";
+
+    for (let i = 0; i < SCRAMBLE_NAME.length; i++) {
+        const char = SCRAMBLE_NAME[i];
+        if (char === " " || letterResolved[i]) {
+            output += char;
+        } else {
+            output += randomChar();
+        }
+    }
+
+    loaderName.textContent = output;
+}
+
+function scrambleLetter(index) {
+    return new Promise((resolve) => {
+        if (SCRAMBLE_NAME[index] === " ") {
+            letterResolved[index] = true;
+            renderScrambleName();
+            resolve();
+            return;
+        }
+
+        const start = performance.now();
+        const tick = setInterval(() => {
+            renderScrambleName();
+
+            if (performance.now() - start >= LETTER_SCRAMBLE_DURATION) {
+                clearInterval(tick);
+                letterResolved[index] = true;
+                renderScrambleName();
+                resolve();
+            }
+        }, SCRAMBLE_INTERVAL);
+    });
+}
+
+async function runNameReveal() {
+    for (let i = 0; i < SCRAMBLE_NAME.length; i++) {
+        await scrambleLetter(i);
+    }
+
+    loaderName.textContent = SCRAMBLE_NAME;
+    nameRevealComplete = true;
+    tryHideLoader();
+}
+
+function updateLoaderProgress(pct) {
+    loaderBarFill.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+}
+
+function tryHideLoader() {
+    if (!modelLoaded || !nameRevealComplete || hideScheduled) return;
+
+    hideScheduled = true;
+    setTimeout(() => {
+        updateLoaderProgress(100);
+        gsap.to(loaderOverlay, {
+            opacity: 0,
+            duration: 0.6,
+            onComplete: () => {
+                loaderOverlay.style.display = "none";
+            }
+        });
+    }, POST_LOAD_DELAY);
+}
+
+function onModelLoaded() {
+    modelLoaded = true;
+    updateLoaderProgress(100);
+    tryHideLoader();
+}
+
+runNameReveal();
+
 // resolved from the HTML page URL, not this JS file location
 const MODEL_PATH = "./Assets/3DExport.glb";
 
@@ -184,11 +279,20 @@ loader.load(
         setCameraLeftOfModel();
         updateStatus();
         setupScrollControl();
+        onModelLoaded();
     },
-    undefined,
+    (xhr) => {
+        if (xhr.lengthComputable) {
+            const pct = (xhr.loaded / xhr.total) * 100;
+            updateLoaderProgress(pct);
+        }
+    },
     (error) => {
         console.error("Failed to load GLB:", error);
         statusLabel.textContent = "Failed to load model - check path or run with a local server.";
+        modelLoaded = true;
+        nameRevealComplete = true;
+        tryHideLoader();
     }
 );
 
