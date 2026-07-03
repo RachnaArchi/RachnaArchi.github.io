@@ -24,6 +24,8 @@ const CAM_LEFT_FACTOR = 0.0; // adjust cam rotation on x axis
 const CAM_HEIGHT_FACTOR = 0.05; // adjust cam rotation on y axis
 const SCROLL_DURATION = 1;
 const SCROLL_TOLERANCE = 30;
+const STAR_COUNT = 200;
+const STAR_DRIFT_DISTANCE = 200;
 const TEXT_FONT_SIZE = 2;
 const TEXT_MAX_WIDTH = 40;
 const TEXT_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-Regular.ttf";
@@ -31,6 +33,9 @@ const TITLE_FONT = "./Assets/fonts/Bitcount_Single/static/BitcountSingle_Roman-B
 const TITLE_TEXT = "Rachna Leang";
 const TITLE_TEXT_POS = { x: 159.2, y: 33, z: -10 };
 const TITLE_FONT_SIZE = 2;
+const SCROLL_HINT_TEXT = "scroll down for more!";
+const SCROLL_HINT_TEXT_POS = { x: 270, y: 65, z: -40 };
+const SCROLL_HINT_FONT_SIZE = 2;
 const LINKEDIN_URL = "https://www.linkedin.com/in/rachna-leang-b702952b9/";
 const LINKEDIN_TEXTURE_PATH = "./Assets/images/linkedin.png";
 const LINKEDIN_CUBE_POS = {
@@ -45,11 +50,12 @@ const LINKEDIN_CUBE_SPIN_X = 0.01;
 const LINKEDIN_CUBE_SPIN_Y = 0.005;
 const LINKEDIN_CUBE_SPIN_Z = 0.0001;
 const LINKEDIN_CUBE_SECTION_INDEX = 1;
-const LINKEDIN_CUBE_ANIM_DURATION = 2;
+const LINKEDIN_CUBE_ANIM_DURATION = 1;
 const LINKEDIN_CUBE_EXIT_ANIM_DURATION = 1;
 const LINKEDIN_CUBE_SLIDE_OFFSET = 50;
 const TEXT_REVEAL_DURATION = 1;
 const TEXT_HIDE_DURATION = 1;
+const HOME_TEXT_HIDE_DURATION = TEXT_HIDE_DURATION / 2;
 const MOBILE_BREAKPOINT = 1080;
 
 // loading screen
@@ -148,6 +154,7 @@ function playInitialSectionText() {
 
     initialTextPlayed = true;
     revealTitleText();
+    revealScrollHintText();
     revealSectionText(currentIndex);
 }
 
@@ -260,12 +267,14 @@ let currentIndex = 0;
 let isAnimating = false;
 let sectionTexts = [];
 let titleText = null;
+let scrollHintText = null;
 let linkedInCube = null;
 let linkedInCubeHovered = false;
 let linkedInCubeScale = LINKEDIN_CUBE_SCALE_MIN;
 let linkedInCubeScaleGrowing = true;
 let linkedInCubeAnimating = false;
 let isMobile = isMobileView();
+const stars = [];
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -348,7 +357,7 @@ function revealTextMesh(textMesh) {
     });
 }
 
-function hideTextMesh(textMesh) {
+function hideTextMesh(textMesh, duration = TEXT_HIDE_DURATION) {
     if (!textMesh) return Promise.resolve();
 
     stopTextAnimation(textMesh);
@@ -360,7 +369,7 @@ function hideTextMesh(textMesh) {
     return new Promise((resolve) => {
         textMesh.userData.textTween = gsap.to(state, {
             length: 0,
-            duration: TEXT_HIDE_DURATION,
+            duration,
             ease: "none",
             onUpdate: () => setTextByLength(textMesh, Math.ceil(state.length)),
             onComplete: () => {
@@ -386,8 +395,45 @@ function revealTitleText() {
 }
 
 function hideTitleText() {
-    return hideTextMesh(titleText);
+    return hideTextMesh(titleText, HOME_TEXT_HIDE_DURATION);
 }
+
+function revealScrollHintText() {
+    return revealTextMesh(scrollHintText);
+}
+
+function hideScrollHintText() {
+    return hideTextMesh(scrollHintText, HOME_TEXT_HIDE_DURATION);
+}
+
+function toVerticalText(text) {
+    return text.split("").join("\n");
+}
+
+function generateStars() {
+    const geometry = new THREE.SphereGeometry(0.25, 24, 24);
+    const material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const star = new THREE.Mesh(geometry, material);
+    const [x, y, z] = Array(3).fill().map(() => THREE.MathUtils.randFloatSpread(800));
+    star.position.set(x, y, z);
+    scene.add(star);
+    stars.push(star);
+}
+
+function animateStarsOnTransition() {
+    stars.forEach((star) => {
+        gsap.killTweensOf(star.position);
+        gsap.to(star.position, {
+            x: star.position.x + THREE.MathUtils.randFloatSpread(STAR_DRIFT_DISTANCE),
+            y: star.position.y + THREE.MathUtils.randFloatSpread(STAR_DRIFT_DISTANCE),
+            z: star.position.z + THREE.MathUtils.randFloatSpread(STAR_DRIFT_DISTANCE),
+            duration: SCROLL_DURATION,
+            ease: "power2.inOut"
+        });
+    });
+}
+
+Array(STAR_COUNT).fill().forEach(generateStars);
 
 function createTitleText() {
     const outText = new Text();
@@ -403,6 +449,28 @@ function createTitleText() {
     outText.textAlign = "left";
     outText.anchorX = "left";
     outText.anchorY = "middle";
+    outText.visible = false;
+    outText.sync();
+
+    scene.add(outText);
+    return outText;
+}
+
+function createScrollHintText() {
+    const outText = new Text();
+    const pos = SCROLL_HINT_TEXT_POS;
+    const verticalText = toVerticalText(SCROLL_HINT_TEXT);
+
+    outText.userData.fullText = verticalText;
+    outText.text = "";
+    outText.font = TEXT_FONT;
+    outText.fontSize = SCROLL_HINT_FONT_SIZE;
+    outText.color = 0xffffff;
+    outText.maxWidth = TEXT_MAX_WIDTH;
+    outText.position.set(pos.x, pos.y, pos.z);
+    outText.textAlign = "center";
+    outText.anchorX = "center";
+    outText.anchorY = "top";
     outText.visible = false;
     outText.sync();
 
@@ -433,6 +501,7 @@ function createSectionText(section) {
 
 function initSectionTexts() {
     titleText = createTitleText();
+    scrollHintText = createScrollHintText();
     sectionTexts = TEXT_SECTIONS.map((section) => createSectionText(section));
 }
 
@@ -625,6 +694,12 @@ function applyViewportLayout() {
         titleText.sync();
     }
 
+    if (scrollHintText) {
+        const hintPos = SCROLL_HINT_TEXT_POS;
+        scrollHintText.position.set(hintPos.x, hintPos.y, hintPos.z);
+        scrollHintText.sync();
+    }
+
     if (linkedInCube && !linkedInCubeAnimating) {
         const cubePos = getLinkedInCubeTargetPos();
         linkedInCube.position.set(cubePos.x, cubePos.y, cubePos.z);
@@ -632,7 +707,9 @@ function applyViewportLayout() {
 }
 
 function warmupSectionTexts() {
-    const meshes = titleText ? [titleText, ...sectionTexts] : sectionTexts;
+    const meshes = titleText
+        ? [titleText, scrollHintText, ...sectionTexts].filter(Boolean)
+        : sectionTexts;
 
     return Promise.all(
         meshes.map(
@@ -657,7 +734,9 @@ async function transitionToSection(newIndex) {
     const oldIndex = currentIndex;
 
     await hideSectionText(oldIndex);
-    if (oldIndex === 0) await hideTitleText();
+    if (oldIndex === 0) {
+        await Promise.all([hideTitleText(), hideScrollHintText()]);
+    }
 
     const leavingLinkedInSection = oldIndex === LINKEDIN_CUBE_SECTION_INDEX;
     const enteringLinkedInSection = newIndex === LINKEDIN_CUBE_SECTION_INDEX;
@@ -675,6 +754,7 @@ async function transitionToSection(newIndex) {
 
     const target = MODEL_SECTIONS[currentIndex];
     const targetPos = getModelPos(target);
+    animateStarsOnTransition();
     await new Promise((resolve) => {
         gsap.to(modelGroup.position, {
             x: targetPos.x,
@@ -687,7 +767,11 @@ async function transitionToSection(newIndex) {
     });
 
     if (currentIndex === 0) {
-        await Promise.all([revealSectionText(currentIndex), revealTitleText()]);
+        await Promise.all([
+            revealSectionText(currentIndex),
+            revealTitleText(),
+            revealScrollHintText()
+        ]);
     } else {
         await revealSectionText(currentIndex);
     }
